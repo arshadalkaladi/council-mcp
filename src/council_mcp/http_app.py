@@ -22,7 +22,7 @@ from .auth import gate, metadata
 from .auth.errors import AuthError
 from .auth.tokens import TokenIssuer
 from .config import Config, token_secret_from_env
-from .council import CouncilService, DeterministicDemoProvider, run_deliberation
+from .council import CouncilService, run_deliberation, select_provider
 from .health import health_payload
 from .jobs import WorkerPool
 from .mcp.registry import ToolRegistry
@@ -44,7 +44,7 @@ class App:
         # open with migrate=False.
         open_store(config.db_path).close()
 
-        self.provider = DeterministicDemoProvider()
+        self.provider = select_provider(config)  # deterministic by default
         self.council = CouncilService(config.db_path)
         self.worker = WorkerPool(
             config.db_path,

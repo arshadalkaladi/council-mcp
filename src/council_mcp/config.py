@@ -19,6 +19,9 @@ ENV_ISSUER = "OAUTH_ISSUER"
 ENV_AUDIENCE = "OAUTH_AUDIENCE"
 ENV_TOKEN_SECRET = "COUNCIL_MCP_TOKEN_SECRET"  # signing secret; NEVER logged/stored
 ENV_DB_PATH = "COUNCIL_MCP_DB"
+ENV_REASONING_PROVIDER = "REASONING_PROVIDER"   # "deterministic" (default) | "ollama"
+ENV_OLLAMA_URL = "OLLAMA_URL"
+ENV_OLLAMA_MODEL = "OLLAMA_MODEL"
 
 # Substrings that mark a value as secret-like. Used by redact() so we never
 # emit tokens/keys/passwords into logs even by accident.
@@ -41,6 +44,9 @@ class Config:
     issuer: str = ""       # non-secret; empty => derived from host:port
     audience: str = "council-mcp"
     db_path: str = "council.db"
+    reasoning_provider: str = "deterministic"  # default; "ollama" to opt in
+    ollama_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3"
 
     @classmethod
     def from_env(cls, environ: dict | None = None) -> "Config":
@@ -60,6 +66,9 @@ class Config:
             issuer=e.get(ENV_ISSUER, ""),
             audience=e.get(ENV_AUDIENCE, "council-mcp"),
             db_path=e.get(ENV_DB_PATH, "council.db"),
+            reasoning_provider=e.get(ENV_REASONING_PROVIDER, "deterministic"),
+            ollama_url=e.get(ENV_OLLAMA_URL, "http://localhost:11434"),
+            ollama_model=e.get(ENV_OLLAMA_MODEL, "llama3"),
         )
 
     def base_url(self) -> str:

@@ -13,6 +13,8 @@ enforced by optimistic status guards at each transition.
 """
 
 from .provider import DeterministicDemoProvider, ReasoningProvider, PerspectiveOutput
+from .ollama_provider import FallbackProvider, OllamaProvider
+from .factory import select_provider
 from .service import CouncilService
 from .engine import run_deliberation
 
@@ -20,6 +22,9 @@ __all__ = [
     "ReasoningProvider",
     "DeterministicDemoProvider",
     "PerspectiveOutput",
+    "OllamaProvider",
+    "FallbackProvider",
+    "select_provider",
     "CouncilService",
     "run_deliberation",
 ]
