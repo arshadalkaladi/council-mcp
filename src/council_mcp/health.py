@@ -22,6 +22,11 @@ from . import __version__
 SERVICE_NAME = "council-mcp"
 
 
+def health_payload() -> dict:
+    """The /healthz body. Reused by the composed HTTP app (Phase 1B+)."""
+    return {"status": "ok", "service": SERVICE_NAME, "version": __version__}
+
+
 class _HealthHandler(BaseHTTPRequestHandler):
     server_version = f"{SERVICE_NAME}/{__version__}"
 
@@ -35,11 +40,7 @@ class _HealthHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802 (stdlib naming)
         if self.path == "/healthz":
-            self._write_json(200, {
-                "status": "ok",
-                "service": SERVICE_NAME,
-                "version": __version__,
-            })
+            self._write_json(200, health_payload())
         else:
             self._write_json(404, {"error": "not_found"})
 

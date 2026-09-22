@@ -10,18 +10,30 @@ codebase and no personal data.
 
 ## Status
 
-**Phase 1A — standalone skeleton.** Standard-library only; runnable and testable
-with nothing but Python 3.11+. The MCP Streamable-HTTP transport, OAuth 2.1
-authentication, persistence, and the council engine arrive in later phases per
-the frozen build plan in [`docs/architecture.md`](docs/architecture.md).
+**Phase 1B — auth/security foundation.** Standard-library only; runnable and
+testable with nothing but Python 3.11+. Provides OAuth 2.1 discovery metadata
+(PKCE **S256**), self-issued HS256 bearer tokens, a bearer auth gate with the
+correct **401 + WWW-Authenticate** flow, and the linked-account persistence key
+(`account_id`). The MCP Streamable-HTTP transport, persistence, and the council
+engine arrive in later phases per [`docs/architecture.md`](docs/architecture.md).
 
-## Quick start (Phase 1A)
+## Quick start
 
-Run the health endpoint (no dependencies required):
+Run the composed app (health + OAuth metadata + a demo protected route):
 
 ```bash
-PYTHONPATH=src python -m council_mcp.health
-# GET http://127.0.0.1:8080/healthz  ->  {"status":"ok",...}
+export COUNCIL_MCP_TOKEN_SECRET=dev-secret        # required for protected routes
+PYTHONPATH=src python -m council_mcp.http_app
+# GET /healthz
+# GET /.well-known/oauth-authorization-server      (advertises S256)
+# GET /.well-known/oauth-protected-resource
+# GET /whoami                                       (401 without a valid Bearer token)
+```
+
+Run the minimal liveness-only server:
+
+```bash
+PYTHONPATH=src python -m council_mcp.health         # GET /healthz only
 ```
 
 Run the test suite (standard library `unittest`):
