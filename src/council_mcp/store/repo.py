@@ -144,6 +144,117 @@ class Store:
         )
         return _row(cur.fetchone())
 
+    # -- jobs: TRUSTED INFRASTRUCTURE (worker) ---------------------------
+    # These are NOT account-scoped: the background worker is server
+    # infrastructure and processes every account's jobs. They must NEVER be
+    # called from a user-request path. User-facing job reads use get_job()
+    # (account-scoped) above. Account isolation of the WORK is preserved
+    # because each job carries its account_id, which handlers use to scope
+    # their own reads/writes.
+    def _get_job_any(self, job_id: str) -> dict | None:
+        cur = self._conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,))
+        return _row(cur.fetchone())
+
+    def claim_next_job(self, *, now: str | None = None) -> dict | None:
+        """Atomically claim the oldest QUEUED job (QUEUED -> CLAIMED).
+
+        Concurrency-safe: the guarded UPDATE (WHERE state='QUEUED') means only
+        one claimer wins; losers get rowcount 0 and see None.
+        """
+        ts = now or _now()
+        with self._conn:
+            row = self._conn.execute(
+                "SELECT job_id FROM jobs WHERE state = 'QUEUED' "
+                "ORDER BY created_at, job_id LIMIT 1"
+            ).fetchone()
+            if row is None:
+                return None
+            job_id = row[0]
+            cur = self._conn.execute(
+                "UPDATE jobs SET state = 'CLAIMED', claimed_at = ?, updated_at = ? "
+                "WHERE job_id = ? AND state = 'QUEUED'",
+                (ts, ts, job_id),
+            )
+            if cur.rowcount != 1:
+                return None  # lost the race; caller may retry
+        return self._get_job_any(job_id)
+
+    def mark_job_running(self, job_id: str, *, now: str | None = None) -> bool:
+        ts = now or _now()
+        with self._conn:
+            cur = self._conn.execute(
+                "UPDATE jobs SET state = 'RUNNING', updated_at = ? "
+                "WHERE job_id = ? AND state = 'CLAIMED'",
+                (ts, job_id),
+            )
+        return cur.rowcount == 1
+
+    def mark_job_succeeded(self, job_id: str, *, now: str | None = None) -> bool:
+        ts = now or _now()
+        with self._conn:
+            cur = self._conn.execute(
+                "UPDATE jobs SET state = 'SUCCEEDED', updated_at = ? "
+                "WHERE job_id = ? AND state IN ('CLAIMED', 'RUNNING')",
+                (ts, job_id),
+            )
+        return cur.rowcount == 1
+
+    def mark_job_failed(self, job_id: str, error: str | None = None,
+                        *, now: str | None = None) -> str | None:
+        """Record a failure: attempts++, then requeue (QUEUED) if attempts
+        remain, else DEAD. Returns the new state, or None if not transitionable.
+        """
+        ts = now or _now()
+        with self._conn:
+            row = self._conn.execute(
+                "SELECT attempts, max_attempts FROM jobs "
+                "WHERE job_id = ? AND state IN ('CLAIMED', 'RUNNING')",
+                (job_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            attempts = row["attempts"] + 1
+            new_state = "DEAD" if attempts >= row["max_attempts"] else "QUEUED"
+            self._conn.execute(
+                "UPDATE jobs SET state = ?, attempts = ?, error = ?, "
+                "claimed_at = NULL, updated_at = ? WHERE job_id = ?",
+                (new_state, attempts, error, ts, job_id),
+            )
+        return new_state
+
+    def recover_stale_jobs(self, *, now: str | None = None,
+                           stale_before: str | None = None) -> int:
+        """Reset in-flight jobs (CLAIMED/RUNNING) back to QUEUED. Called on
+        startup after a crash (no worker is actually running them). With
+        stale_before set, only jobs claimed before that timestamp are reset."""
+        ts = now or _now()
+        with self._conn:
+            if stale_before is None:
+                cur = self._conn.execute(
+                    "UPDATE jobs SET state = 'QUEUED', claimed_at = NULL, updated_at = ? "
+                    "WHERE state IN ('CLAIMED', 'RUNNING')",
+                    (ts,),
+                )
+            else:
+                cur = self._conn.execute(
+                    "UPDATE jobs SET state = 'QUEUED', claimed_at = NULL, updated_at = ? "
+                    "WHERE state IN ('CLAIMED', 'RUNNING') "
+                    "AND (claimed_at IS NULL OR claimed_at < ?)",
+                    (ts, stale_before),
+                )
+        return cur.rowcount
+
+    def list_jobs_by_state(self, state: str) -> list[dict]:
+        """Infrastructure/observability read across accounts."""
+        cur = self._conn.execute(
+            "SELECT * FROM jobs WHERE state = ? ORDER BY created_at, job_id", (state,)
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+    def count_jobs_by_state(self) -> dict:
+        cur = self._conn.execute("SELECT state, COUNT(*) c FROM jobs GROUP BY state")
+        return {r["state"]: r["c"] for r in cur.fetchall()}
+
 
 def open_store(path: str) -> Store:
     """Connect, migrate, and return a Store."""
