@@ -10,7 +10,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "== [1/3] clean-room import guard =="
-python3 tools/import_guard.py src tools
+python3 tools/import_guard.py src tools demo
 
 echo
 echo "== [2/3] full test suite =="
