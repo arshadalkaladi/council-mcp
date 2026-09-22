@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "council-mcp"
+version = "0.1.0"
+description = "Deliberation Council for Alexa+ — a standalone MCP server that convenes multiple perspectives, deliberates asynchronously, and returns a synthesis with preserved dissent and an audit trail."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Arshad Bin Rashid" }]
+keywords = ["mcp", "alexa", "deliberation", "council", "reasoning"]
+
+# Phase 1A is standard-library only. Third-party runtime dependencies
+# (MCP SDK, OAuth/crypto, etc.) are introduced in later phases.
+dependencies = []
+
+[project.optional-dependencies]
+# Populated in later phases; declared here for planning visibility.
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtualenvs
+.venv/
+venv/
+
+# Environment / secrets (never commit real secrets)
+.env
+*.local
+
+# Databases / durable state (created at runtime; not source)
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+
+# Tooling
+.pytest_cache/
+.coverage
+htmlcov/
