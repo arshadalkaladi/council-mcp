@@ -6,6 +6,36 @@
 **Context:** We built a self-hosted MCP server (spec 2025-11-25) for the Alexa+
 track and read the official Alexa+ MCP Toolkit docs closely while implementing it.
 
+## Required feedback responses (mapped to the submission questions)
+
+**Which tools/APIs/technologies did you use?** The Model Context Protocol (spec
+2025-11-25) over Streamable HTTP; the official Alexa+ MCP Toolkit documentation
+(QuickStart, Overview, Account Linking, Functional Requirements, Certify) as the
+contract we built to; OAuth 2.1 + PKCE S256; Python standard library only
+(`http.server`, `sqlite3`, `hmac`/`hashlib`, `threading`, `urllib`); optional
+local Ollama for the reasoning provider. We did not use the Alexa AI CLI / add-on
+deployment because the Alexa+ Developer Console is currently "Coming Soon" for our
+account (see onboarding note below).
+
+**What worked well?** See "What worked well" below — chiefly the crisp, concrete
+requirements (Streamable HTTP, PKCE S256, the < 500 ms round-trip, "return stable
+identifiers").
+
+**What needs work?** See "Gaps that cost us time" below — chiefly async/long-running
+guidance, identity/session fields, and self-serve access.
+
+**How was the onboarding experience?** Mixed. The documentation-first onboarding was
+excellent and let us build a complete, spec-conformant server without console
+access. But the actual **Alexa+ Developer Console shows "Coming Soon"** and
+"Alexa+ for Builders is available to select partners," with no self-serve request
+path — so we could not deploy/test against a real Alexa+ endpoint. A public local
+simulator and a self-serve sandbox would remove this blocker for independent
+developers.
+
+**Would you use it again?** Yes. The model is well-designed and we would ship an
+Alexa+ add-on the moment self-serve access opens. We would reuse MCP + the Alexa+
+integration model for future assistant capabilities.
+
 ## What worked well
 - The MCP Toolkit docs are clear on the **essentials**: Streamable HTTP requirement
   (SSE deprecated), OAuth 2.1 + PKCE **S256**, the `401` + Protected Resource
