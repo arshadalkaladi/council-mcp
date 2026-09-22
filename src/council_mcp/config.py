@@ -18,6 +18,7 @@ ENV_ENV = "COUNCIL_MCP_ENV"
 ENV_ISSUER = "OAUTH_ISSUER"
 ENV_AUDIENCE = "OAUTH_AUDIENCE"
 ENV_TOKEN_SECRET = "COUNCIL_MCP_TOKEN_SECRET"  # signing secret; NEVER logged/stored
+ENV_DB_PATH = "COUNCIL_MCP_DB"
 
 # Substrings that mark a value as secret-like. Used by redact() so we never
 # emit tokens/keys/passwords into logs even by accident.
@@ -39,6 +40,7 @@ class Config:
     env: str = "development"
     issuer: str = ""       # non-secret; empty => derived from host:port
     audience: str = "council-mcp"
+    db_path: str = "council.db"
 
     @classmethod
     def from_env(cls, environ: dict | None = None) -> "Config":
@@ -57,6 +59,7 @@ class Config:
             env=e.get(ENV_ENV, "development"),
             issuer=e.get(ENV_ISSUER, ""),
             audience=e.get(ENV_AUDIENCE, "council-mcp"),
+            db_path=e.get(ENV_DB_PATH, "council.db"),
         )
 
     def base_url(self) -> str:

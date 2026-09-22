@@ -2,6 +2,8 @@
 with auth enforcement and session handling."""
 
 import json
+import os
+import tempfile
 import threading
 import unittest
 import urllib.error
@@ -18,7 +20,8 @@ AUD = "council-mcp"
 
 class MCPHttpTest(unittest.TestCase):
     def setUp(self):
-        cfg = Config(host="127.0.0.1", port=0, issuer=ISSUER, audience=AUD)
+        db_path = os.path.join(tempfile.mkdtemp(), "t.db")
+        cfg = Config(host="127.0.0.1", port=0, issuer=ISSUER, audience=AUD, db_path=db_path)
         self.server = make_server(cfg, SECRET, host="127.0.0.1", port=0)
         self.port = self.server.server_address[1]
         self.base = f"http://127.0.0.1:{self.port}"

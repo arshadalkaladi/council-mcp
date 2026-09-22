@@ -11,6 +11,7 @@ those phases build on.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import datetime, timezone
 
@@ -119,6 +120,88 @@ class Store:
             (account_id, deliberation_id),
         )
         return [dict(r) for r in cur.fetchall()]
+
+    # -- council results (account-scoped) --------------------------------
+    def save_perspective_result(self, account_id: str, deliberation_id: str,
+                                perspective: str, *, stance: str | None = None,
+                                argument: str | None = None, confidence: float | None = None,
+                                evidence: list | None = None, failed: bool = False,
+                                error: str | None = None, now: str | None = None) -> None:
+        ts = now or _now()
+        with self._conn:
+            self._conn.execute(
+                "INSERT INTO perspective_results "
+                "(deliberation_id, account_id, perspective, stance, argument, confidence, "
+                " evidence_json, failed, error, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (deliberation_id, account_id, perspective, stance, argument, confidence,
+                 json.dumps(evidence or []), 1 if failed else 0, error, ts),
+            )
+
+    def list_perspective_results(self, account_id: str, deliberation_id: str) -> list[dict]:
+        cur = self._conn.execute(
+            "SELECT * FROM perspective_results WHERE account_id = ? AND deliberation_id = ? "
+            "ORDER BY id",
+            (account_id, deliberation_id),
+        )
+        out = []
+        for r in cur.fetchall():
+            d = dict(r)
+            d["evidence"] = json.loads(d.pop("evidence_json") or "[]")
+            d["failed"] = bool(d["failed"])
+            out.append(d)
+        return out
+
+    def save_synthesis(self, account_id: str, deliberation_id: str, *,
+                       recommendation: str, rationale: str, confidence: float,
+                       considered: list, dissents: list, now: str | None = None) -> None:
+        ts = now or _now()
+        with self._conn:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO synthesis "
+                "(deliberation_id, account_id, recommendation, rationale, confidence, "
+                " considered_json, dissents_json, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                (deliberation_id, account_id, recommendation, rationale, confidence,
+                 json.dumps(considered), json.dumps(dissents), ts),
+            )
+
+    def get_synthesis(self, account_id: str, deliberation_id: str) -> dict | None:
+        cur = self._conn.execute(
+            "SELECT * FROM synthesis WHERE account_id = ? AND deliberation_id = ?",
+            (account_id, deliberation_id),
+        )
+        r = cur.fetchone()
+        if r is None:
+            return None
+        d = dict(r)
+        d["considered"] = json.loads(d.pop("considered_json") or "[]")
+        d["dissents"] = json.loads(d.pop("dissents_json") or "[]")
+        return d
+
+    def cancel_deliberation(self, account_id: str, deliberation_id: str,
+                            *, now: str | None = None) -> bool:
+        """Set CANCELLED iff currently non-terminal. Returns True iff changed."""
+        ts = now or _now()
+        with self._conn:
+            cur = self._conn.execute(
+                "UPDATE deliberations SET status='CANCELLED', terminal_at=?, updated_at=? "
+                "WHERE deliberation_id=? AND account_id=? "
+                "AND status IN ('QUEUED','RUNNING','SYNTHESIZING')",
+                (ts, ts, deliberation_id, account_id),
+            )
+        return cur.rowcount == 1
+
+    def fail_deliberation(self, account_id: str, deliberation_id: str,
+                          *, now: str | None = None) -> bool:
+        """Set FAILED iff currently non-terminal. Returns True iff changed."""
+        ts = now or _now()
+        with self._conn:
+            cur = self._conn.execute(
+                "UPDATE deliberations SET status='FAILED', terminal_at=?, updated_at=? "
+                "WHERE deliberation_id=? AND account_id=? "
+                "AND status IN ('QUEUED','RUNNING','SYNTHESIZING')",
+                (ts, ts, deliberation_id, account_id),
+            )
+        return cur.rowcount == 1
 
     # -- jobs (table + minimal ops; claim/retry/recovery arrive in 1E) ---
     def create_job(self, account_id: str, job_id: str, kind: str, ref_id: str,
@@ -256,8 +339,10 @@ class Store:
         return {r["state"]: r["c"] for r in cur.fetchall()}
 
 
-def open_store(path: str) -> Store:
-    """Connect, migrate, and return a Store."""
+def open_store(path: str, *, migrate: bool = True) -> Store:
+    """Connect and return a Store. Migrates by default; pass migrate=False on the
+    request path once the schema is already established at startup."""
     conn = db.connect(path)
-    db.migrate(conn)
+    if migrate:
+        db.migrate(conn)
     return Store(conn)

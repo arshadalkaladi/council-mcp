@@ -1,6 +1,8 @@
 """Integration tests over the composed HTTP app: well-known + 401/200 flow."""
 
 import json
+import os
+import tempfile
 import threading
 import unittest
 import urllib.error
@@ -13,13 +15,18 @@ from council_mcp.auth.tokens import TokenIssuer
 SECRET = b"http-integration-secret"
 
 
+def _tmp_db() -> str:
+    return os.path.join(tempfile.mkdtemp(), "t.db")
+
+
 class HttpAuthTest(unittest.TestCase):
     def setUp(self):
         # Pin a fixed issuer string so token validation is independent of the
         # ephemeral bind port (the app derives its issuer from config, not the
         # socket).
         self.config = Config(host="127.0.0.1", port=0,
-                             issuer="http://council.test", audience="council-mcp")
+                             issuer="http://council.test", audience="council-mcp",
+                             db_path=_tmp_db())
         self.server = make_server(self.config, SECRET, host="127.0.0.1", port=0)
         self.port = self.server.server_address[1]
         self.base = f"http://127.0.0.1:{self.port}"
@@ -84,8 +91,8 @@ class HttpAuthUnavailableTest(unittest.TestCase):
     """With no secret configured, protected routes fail closed (503)."""
 
     def setUp(self):
-        self.server = make_server(Config(host="127.0.0.1", port=0), secret=b"",
-                                  host="127.0.0.1", port=0)
+        self.server = make_server(Config(host="127.0.0.1", port=0, db_path=_tmp_db()),
+                                  secret=b"", host="127.0.0.1", port=0)
         self.port = self.server.server_address[1]
         self.base = f"http://127.0.0.1:{self.port}"
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)

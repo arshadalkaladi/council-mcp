@@ -22,10 +22,13 @@ from .auth import gate, metadata
 from .auth.errors import AuthError
 from .auth.tokens import TokenIssuer
 from .config import Config, token_secret_from_env
+from .council import CouncilService, DeterministicDemoProvider, run_deliberation
 from .health import health_payload
+from .jobs import WorkerPool
 from .mcp.registry import ToolRegistry
 from .mcp.server import MCPServer, RequestContext
-from .tools_builtin import register_builtin_tools
+from .store import open_store
+from .tools_builtin import register_builtin_tools, register_council_tools
 
 _MAX_BODY_BYTES = 256 * 1024  # cap request bodies (oversize protection)
 _SESSION_HEADER = "Mcp-Session-Id"
@@ -36,9 +39,30 @@ class App:
         self.config = config
         self.issuer = issuer
         self.base_url = config.base_url()
+
+        # Ensure the schema exists once at startup; request-path stores then
+        # open with migrate=False.
+        open_store(config.db_path).close()
+
+        self.provider = DeterministicDemoProvider()
+        self.council = CouncilService(config.db_path)
+        self.worker = WorkerPool(
+            config.db_path,
+            {"deliberation": lambda job, store: run_deliberation(job, store, self.provider)},
+        )
+
         self.registry = ToolRegistry()
         register_builtin_tools(self.registry)
+        register_council_tools(self.registry, self.council)
         self.mcp = MCPServer(self.registry)
+
+    def start(self) -> None:
+        """Start the background worker pool."""
+        self.worker.start()
+
+    def stop(self) -> None:
+        """Stop the background worker pool."""
+        self.worker.stop()
 
 
 def _make_handler(app: App):
@@ -152,16 +176,21 @@ def make_server(config: Config | None = None, secret: bytes | None = None,
     app = build_app(config, secret)
     bind_host = host if host is not None else app.config.host
     bind_port = port if port is not None else app.config.port
-    return ThreadingHTTPServer((bind_host, bind_port), _make_handler(app))
+    server = ThreadingHTTPServer((bind_host, bind_port), _make_handler(app))
+    # Expose the app so callers can start/stop the worker pool.
+    server._app = app  # type: ignore[attr-defined]
+    return server
 
 
 def main() -> None:
     server = make_server()
+    server._app.start()  # type: ignore[attr-defined]
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        server._app.stop()  # type: ignore[attr-defined]
         server.server_close()
 
 
