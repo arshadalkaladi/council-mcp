@@ -10,12 +10,22 @@ codebase and no personal data.
 
 ## Status
 
-**Phase 1B — auth/security foundation.** Standard-library only; runnable and
-testable with nothing but Python 3.11+. Provides OAuth 2.1 discovery metadata
-(PKCE **S256**), self-issued HS256 bearer tokens, a bearer auth gate with the
-correct **401 + WWW-Authenticate** flow, and the linked-account persistence key
-(`account_id`). The MCP Streamable-HTTP transport, persistence, and the council
-engine arrive in later phases per [`docs/architecture.md`](docs/architecture.md).
+**Locally certified (Phases 1A–2C).** A complete, standalone Alexa+ MCP
+Deliberation Council, runnable and testable with nothing but Python 3.11+:
+OAuth 2.1 (PKCE **S256**) resource+authorization server, MCP Streamable-HTTP
+transport, SQLite (WAL) persistence + migrations, a bounded background worker
+with retry/recovery, the Concept A council (four independent perspectives,
+synthesis with preserved dissent, full state machine), a deterministic offline
+default provider and an optional local Ollama provider with safe fallback,
+strict account isolation, and an audit trail. See
+[`docs/architecture.md`](docs/architecture.md) and
+[`demo/RUNBOOK.md`](demo/RUNBOOK.md).
+
+Certify everything in one command:
+
+```bash
+bash tools/certify.sh   # import guard + full test suite + deterministic demo
+```
 
 ## Quick start
 
